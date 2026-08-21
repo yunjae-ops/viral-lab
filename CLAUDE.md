@@ -58,7 +58,18 @@ Scout 관련 코드/의존성/폴더는 Review 실사용 검증(Review Phase 6)�
     - **단순 주제 요약 금지.** ("다이소 화장품 추천" ❌ → "비싼 해결책보다 저렴하고 별것 아닌 제품에서 오히려 더 눈에 띄는 만족을 경험한 가격/기대 역전" ✅)
     - 작성안에서도 `draftCoreAppeal`을 별도 추출한 뒤 두 소구를 비교해 `appealTransfer`를 판정.
 
-11. **`finalVerdict`는 서버가 결정적 규칙으로 계산한다.** enum `READY | NEEDS_REVISION | FAIL`. 임의의 100점 점수 방식 금지. 규칙 상세는 `docs/SPEC.md §1.5`와 `docs/DECISIONS.md D-022`. AI는 개별 gate/enum만 반환하고 verdict를 확정하지 않는다.
+11. **`finalVerdict`는 서버가 결정적 규칙으로 계산한다.** enum `READY | NEEDS_REVISION | FAIL`. 임의의 100점 점수 방식 금지. 규칙 상세는 `docs/SPEC.md §1.5`와 `docs/DECISIONS.md D-022` (Reconstruction 반영 포함). AI는 개별 gate/enum만 반환하고 verdict를 확정하지 않는다.
+
+11a. **Reconstruction Quality (레퍼런스 있을 때만).** Appeal Transfer가 심리적 엔진 이전을 본다면, Reconstruction Quality는 **표면 서사가 새로 설계됐는가**를 본다. 두 축은 절대 통합하지 않는다.
+    - 4개 축(각 enum): Persona · Event (`CHANGED|SAME|NOT_APPLICABLE`), DeficiencyTrigger (`CHANGED|SAME|ADDED|NOT_APPLICABLE`), EndingMethod (`CHANGED|SAME|NOT_APPLICABLE` + `endingType`).
+    - Obstacle 별도: `referenceHasObstacle`, `draftHasObstacle`, `functionPreserved`, `detailsTransformed`, `evidence`. **기능은 유지, 내용은 재구성.**
+    - Surface Clone Risk: `LOW|MEDIUM|HIGH` (기존 `diagnostic.referenceCloneRisk` 삭제, 여기로 이동).
+    - `unchangedCount`·`applicableCount`·`verdict`(`TRANSFORMED|BORDERLINE|TOO_CLOSE`)는 **서버가 결정적으로 계산.**
+    - **단순 단어 치환(엄마→이모, 3년→2년, 119→응급실 등)은 CHANGED로 인정하지 않는다.** 프롬프트 상수에 예시 삽입.
+    - **억지 비극·과장된 위험 상황을 사실처럼 제시하는 DeficiencyTrigger는 좋은 재구성으로 평가하지 않는다.**
+    - AI는 "법적 표절이다/아니다"라고 단정하지 않는다. 이 판정은 내부 재구성 훈련 기준.
+    - Final Verdict 규칙: `refExists && verdict=TOO_CLOSE` → FAIL, `refExists && surfaceCloneRisk=HIGH` → FAIL, READY는 `verdict=TRANSFORMED` + `surfaceCloneRisk!=HIGH` 필수. BORDERLINE은 READY 불가.
+    - 완전한 규칙은 `docs/RECONSTRUCTION_RULES.md`.
 
 12. **Diagnostic은 처음부터 enum + OTHER + otherLabel.**
     - Hook: `A~M | NEW_PATTERN_CANDIDATE` (OTHER 없음. 자세한 정의는 `docs/HOOK_CODES.md`.)
@@ -80,7 +91,7 @@ Scout 관련 코드/의존성/폴더는 Review 실사용 검증(Review Phase 6)�
     - 캐시 키: `SHA-256(draft + ␞ + (refOriginal ?? "") + ␞ + promptVersion)`.
     - 동일 입력은 사용자 강제 재분석이 아니면 Claude를 재호출하지 않는다.
     - 빈 Excel 행은 API 호출도, 캐시 항목도 만들지 않는다.
-    - **schema/prompt를 바꾸면 반드시 `promptVersion`을 올려 캐시 자연 무효화.** (Critical Gate 도입으로 현재 `promptVersion = v2`.)
+    - **schema/prompt를 바꾸면 반드시 `promptVersion`을 올려 캐시 자연 무효화.** (Reconstruction Quality 도입으로 현재 `promptVersion = v3`, 프리픽스 `viral-lab:review:v3:`.)
     - 전체 재분석 시작 전 예상 분석 개수·캐시 히트를 사용자에게 표시.
 
 17. **인증.**
@@ -157,6 +168,7 @@ viral-lab/
     DECISIONS.md
     HOOK_CODES.md
     SCOUT_DESIGN.md
+    RECONSTRUCTION_RULES.md
   CLAUDE.md
 ```
 
@@ -213,9 +225,9 @@ Scout 폴더는 Review 실사용 검증 완료 후에만 생성.
 **Review (선행):**
 - Phase 0 — 문서 설계 (완료)
 - Phase 1 — Next.js 초기화 + `/review` + Excel 업로드 + Header 자동 감지 + 행 화면 표시 (AI 없음)
-- Phase 2 — 한 행 AI 분석 + Zod 검증 + **Hygiene + Critical Gate + finalVerdict 계산**
+- Phase 2 — 한 행 AI 분석 + Zod 검증 + **Hygiene + Critical Gate + Reconstruction + finalVerdict 계산**
 - Phase 3 — 전체 배치 분석 + localStorage row-level cache + 강제 재분석
-- Phase 4 — Portfolio Analysis (**appealTransfer / searchMotivation 분포 포함**)
+- Phase 4 — Portfolio Analysis (**appealTransfer / searchMotivation / reconstructionVerdict / surfaceCloneRisk 분포 + 축별 SAME 훈련 지표 포함**)
 - Phase 5 — ANALYZED Excel 다운로드
 - Phase 6 — Vercel 배포 + shared-password + 실제 업무 테스트
 

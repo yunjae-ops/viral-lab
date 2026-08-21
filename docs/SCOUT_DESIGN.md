@@ -105,14 +105,14 @@ Query B: 실행  8회 · 후보  80개 · SAVE 14개 → 높은 효율
 
 ---
 
-## 4a. Review와의 개념 재사용 (Reference Core Appeal / Viral Engine)
+## 4a. Review와의 개념 재사용 (Reference Core Appeal / Viral Engine / Reconstruction 훈련 데이터)
 
-Review Phase에서 도입된 `referenceCoreAppeal`(사람들이 실제로 반응한 심리적 소구 한 문장)와 `referenceViralEngine`(그 소구를 강하게 만든 표현 장치) 개념은 Scout에서도 유용하다.
+Review Phase에서 도입된 개념 중 Scout가 향후 활용할 수 있는 것.
 
-- `saved_references.core_appeal` / `saved_references.viral_engine` 컬럼(`DATA_CONTRACT §6.4`)에 저장 가능.
-- Scout C의 Novelty 판정에서 이 두 문장은 similarity/novelty의 강력한 축이 될 수 있다 (기존 저장분과 draft의 core appeal이 얼마나 다른가).
-- 초기 MVP(Scout C~D)에서 이 컬럼은 존재하되 비어 있어도 된다. 사용자가 SAVE 시 수동 편집 가능하고, AI가 초안을 제안할 수도 있다.
-- Scout에서는 Review와 달리 "이전 성공 여부(appealTransfer)"를 계산하지 않는다. Scout의 대상은 이미 유통 중인 원본 콘텐츠지, 그것을 재활용한 draft가 아니기 때문이다.
+- **`referenceCoreAppeal` / `referenceViralEngine`** — 사람들이 반응한 심리적 소구 한 문장 및 그 표현 장치. `saved_references.core_appeal` / `saved_references.viral_engine` 컬럼(`DATA_CONTRACT §6.4`)에 저장. Scout C의 Novelty 판정에서 similarity/novelty의 강력한 축(기존 저장분과 후보의 core appeal이 얼마나 다른가).
+- **Reconstruction 훈련 데이터** — Review Phase에서 축적된 축별 SAME 카운트, `reconstructionVerdict` 분포, `surfaceCloneRisk` 분포는 사용자가 어떤 서사 축을 새로 만드는 데 약한지 보여준다. Scout가 그 약점을 우선 채우도록 **Diversity Quota**의 축별 상한을 동적으로 낮추거나, 특정 축의 SAME 비율이 임계 초과인 경우 그 축이 강한 후보를 Explore 슬롯에 추가로 배정하는 방식으로 활용 가능. 초기 MVP에서는 저장만 하고 이 자동 연동은 만들지 않는다.
+- 초기 MVP(Scout C~D)에서 위 컬럼은 존재하되 비어 있어도 된다. 사용자가 SAVE 시 수동 편집 가능하고, AI가 초안을 제안할 수도 있다.
+- Scout에서는 Review와 달리 "이전 성공 여부(appealTransfer)"·"재구성 verdict(reconstruction)"를 계산하지 않는다. Scout의 대상은 이미 유통 중인 원본 콘텐츠지, 그것을 재활용한 draft가 아니기 때문이다.
 
 ---
 

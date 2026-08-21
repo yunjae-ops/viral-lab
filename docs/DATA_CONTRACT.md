@@ -3,8 +3,8 @@
 각 경계(Excel ↔ 브라우저 ↔ 서버 API ↔ Claude ↔ Supabase)에서 오가는 데이터의 정확한 모양을 정의한다.
 **AI가 반환하는 모든 JSON은 여기 스키마와 정확히 일치해야 하며, Zod로 런타임 검증한다.**
 
-Scout Phase에 등장하는 Supabase 테이블은 §6.
-현재 `promptVersion = v2` (Critical Gate 도입, D-023).
+Reconstruction 판정 규칙의 완전한 근거는 `docs/RECONSTRUCTION_RULES.md`.
+현재 `promptVersion = v3` (Reconstruction 도입, D-025).
 
 ---
 
@@ -25,18 +25,18 @@ Scout Phase에 등장하는 Supabase 테이블은 §6.
 | Header 문자열 | 의미 | 존재 시 동작 |
 |---|---|---|
 | `이미지 파일명` | 이미지 파일명 | 결과 표/ANALYZED에 그대로 실려 나감 |
-| `레퍼런스 원문` | 레퍼런스 텍스트 전문 | Critical Gate 중 `appealTransfer`와 `referenceCoreAppeal / referenceViralEngine` 추출 활성화 |
+| `레퍼런스 원문` | 레퍼런스 텍스트 전문 | Critical Gate 중 `appealTransfer`, `reference*`, `reconstruction` 활성화 |
 
 ### 1.2 Header 감지 알고리즘
 
-1. Sheet의 첫 20행.
+1. Sheet 첫 20행.
 2. 각 셀 값을 `String(v)` → `trim`.
 3. 필수 3종을 모두 포함(정확 일치 또는 별칭)하는 첫 행 = Header.
-4. 못 찾으면 에러: `"Header를 찾지 못했습니다. 필수 컬럼: 순서, /제목(=레퍼런스 링크), 리뷰내용(=작성안=작성한 글)"`.
+4. 못 찾으면 에러.
 5. Header 다음 행부터 데이터.
-6. `리뷰내용`이 빈 문자열/공백만인 행은 skip — **API 호출도 캐시 항목도 만들지 않는다.**
+6. `리뷰내용`이 공백만인 행은 skip.
 
-### 1.3 파싱 결과 (브라우저 메모리)
+### 1.3 파싱 결과
 
 ```ts
 type ParsedRow = {
@@ -66,7 +66,7 @@ type ParsedRow = {
 }
 ```
 
-### 2.2 Response Body — `RowAnalysis` (promptVersion v2)
+### 2.2 Response Body — `RowAnalysis` (promptVersion v3)
 
 ```json
 {
@@ -85,23 +85,70 @@ type ParsedRow = {
 
   "critical": {
     "reference": {
-      "coreAppeal": "이 콘텐츠에서 사람들이 실제로 욕망·반응한 핵심 소구 한 문장",
-      "viralEngine": "그 소구를 강하게 만든 표현 장치·대비·반전·사회적 증거·반복사용 증거·관계·숫자·상황"
+      "coreAppeal":  "핵심 소구 한 문장",
+      "viralEngine": "그 소구를 강하게 만든 표현 장치"
     },
     "draftCoreAppeal": "작성안에서 뽑아낸 핵심 소구 한 문장",
+
     "appealTransfer": {
       "value": "STRONG",
       "evidence": "왜 STRONG인지 한 줄",
-      "deviationPoint": "가장 크게 소구가 이탈한 지점 (또는 이탈 없으면 null)"
+      "deviationPoint": "가장 크게 소구가 이탈한 지점 또는 null"
     },
+
     "productCuriosity": {
       "value": "MEDIUM",
       "evidence": "왜 MEDIUM인지 한 줄"
     },
+
     "searchMotivation": {
       "value": "STRONG",
-      "evidence": "왜 STRONG인지 한 줄 (본문 미완성/댓글 유도로 만들어진 궁금증이 아닌지 확인)",
+      "evidence": "왜 STRONG인지 한 줄 (본문 미완성/댓글 유도 아닌지 확인)",
       "liftDirection": "검색 동기를 높이기 위한 핵심 수정 방향"
+    },
+
+    "reconstruction": {
+      "persona": {
+        "value": "CHANGED",
+        "referenceSummary": "레퍼런스 화자 한 줄",
+        "draftSummary": "작성안 화자 한 줄",
+        "evidence": "판정 근거 한 줄"
+      },
+      "event": {
+        "value": "CHANGED",
+        "referenceSummary": "레퍼런스 사건 한 줄",
+        "draftSummary": "작성안 사건 한 줄",
+        "evidence": "판정 근거"
+      },
+      "deficiencyTrigger": {
+        "value": "ADDED",
+        "referenceSummary": null,
+        "draftSummary": "작성안 결핍 계기 한 줄",
+        "evidence": "판정 근거"
+      },
+      "endingMethod": {
+        "value": "CHANGED",
+        "referenceType": "정보 질문",
+        "draftType": "관찰",
+        "evidence": "판정 근거"
+      },
+      "obstacle": {
+        "referenceHasObstacle": true,
+        "draftHasObstacle": true,
+        "functionPreserved": true,
+        "detailsTransformed": true,
+        "evidence": "장애물 기능 유지 + 내용 재구성 근거"
+      },
+      "surfaceCloneRisk": {
+        "value": "LOW",
+        "quotedFragments": [],
+        "evidence": "겹치는 표현·수치가 거의 없음"
+      },
+      "unchangedCount":    0,
+      "applicableCount":   4,
+      "verdict":           "TRANSFORMED",
+      "evidence":          "가장 크게 원문과 겹치는 지점 (없다면 '없음')",
+      "revisionDirection": "재구성하려면 무엇을 바꿔야 하는지 (없다면 '유지 권장')"
     }
   },
 
@@ -116,12 +163,10 @@ type ParsedRow = {
 
     "listHomogeneity":       { "applicable": true, "pass": true, "evidence": "..." },
     "salesMessageStandsOut": { "pass": true,  "evidence": "..." },
-    "referenceCloneRisk":    { "applicable": true, "level": "low", "quotedFragments": [] },
 
     "healthClaimsToVerify": ["빈속에 물 1L 마시면 붓기 빠짐"],
     "topProblems": [
-      "발견의 순간이 약함 — G2 재설계 필요",
-      "결과 원인이 서술적임 — 구조화 필요"
+      "발견의 순간이 약함 — G2 재설계 필요"
     ],
     "revisionDirection": "두 번째 단락을 구조화된 원인 두 줄로 축약."
   },
@@ -130,76 +175,115 @@ type ParsedRow = {
     "value": "NEEDS_REVISION",
     "reasons": [
       "hygiene.grade = B (Gate 2 실패)",
-      "appealTransfer STRONG이지만 hygiene A 아님 → READY 불가"
+      "reconstruction.verdict = TRANSFORMED · surfaceCloneRisk = LOW"
     ]
   },
 
   "meta": {
     "model": "<서버 env ANTHROPIC_MODEL 값>",
-    "promptVersion": "v2",
+    "promptVersion": "v3",
     "elapsedMs": 4321
   }
 }
 ```
 
-**`hookCode === "NEW_PATTERN_CANDIDATE"`일 때** `newPatternCandidate`:
-
-```json
-"newPatternCandidate": {
-  "whyDifferent": "A~M 어느 것도 아닌 이유 한 줄",
-  "structureSummary": "핵심 구조 요약",
-  "proposedName": "임시 패턴명",
-  "linguisticFeatures": ["짧은 구절1", "짧은 구절2"]
-}
-```
-
-`hookCode !== "NEW_PATTERN_CANDIDATE"`이면 `null`. Zod refinement 강제.
-
 ### 2.3 스키마 규칙 (Zod)
 
 **Hygiene:**
-- `hygiene.grade` ∈ `"A" | "B" | "FAIL"`.
-- `hygiene.passedCount` ∈ 0..4, gates의 `pass:true` 개수와 정확히 일치. 불일치 시 실패 = 재시도.
-- 서버는 gates로 항상 `passedCount`·`grade`를 재계산해 덮어쓴다: `4→A, 3→B, 0-2→FAIL`.
+- `hygiene.grade` ∈ `"A" | "B" | "FAIL"`; `passedCount` ∈ 0..4, gates true 개수와 일치. 서버가 재계산해 덮어씀 (`4→A, 3→B, 0-2→FAIL`).
 
-**Critical:**
-- `refOriginal === null || refOriginal === ""` 이면:
-  - `critical.reference` MUST be `null`.
-  - `critical.appealTransfer` MUST be `null`.
-  - `critical.draftCoreAppeal`은 여전히 필수 (draft 단독에서도 뽑는다).
-  - `critical.productCuriosity`, `critical.searchMotivation`은 필수.
-- `refOriginal`이 존재하면:
-  - `critical.reference.coreAppeal`, `critical.reference.viralEngine` 모두 비어 있지 않은 문자열.
-  - `critical.appealTransfer` 객체 필수.
-    - `value` ∈ `"STRONG" | "PARTIAL" | "MISMATCH"`.
-    - `evidence` 비어 있지 않은 문자열.
-    - `deviationPoint`는 문자열 또는 `null`.
-- `critical.productCuriosity.value` ∈ `"STRONG" | "MEDIUM" | "WEAK"`, `evidence` 필수.
-- `critical.searchMotivation.value` ∈ `"STRONG" | "MEDIUM" | "WEAK"`, `evidence`·`liftDirection` 필수.
-- 모든 문자열 필드 최대 500자.
-- **AI가 임의로 이 값들을 확정하지 못하도록** 프롬프트에서 다음 규칙 명시:
-  - 정보량이 많다고 Search Motivation을 STRONG으로 평가하지 말 것.
-  - 본문 미완성·댓글 유도로 만들어진 궁금증은 STRONG으로 평가하지 말 것.
-  - `referenceCoreAppeal`은 단순 주제 요약이 아니라 심리적 소구 문장이어야 함.
+**Critical (레퍼런스 존재 조건):**
 
-**Final Verdict:**
-- `finalVerdict.value` ∈ `"READY" | "NEEDS_REVISION" | "FAIL"`.
-- AI가 반환한 값은 무시하고 **서버가 §2.4 규칙으로 재계산해 덮어쓴다.**
-- `finalVerdict.reasons`는 서버가 채우는 문자열 배열(사람이 읽는 근거).
+Let `refExists = (refOriginal !== null && refOriginal !== "")`.
+
+- `refExists === false`이면:
+  - `critical.reference === null`
+  - `critical.appealTransfer === null`
+  - `critical.reconstruction === null`
+  - `critical.draftCoreAppeal`은 여전히 필수
+  - `critical.productCuriosity`, `critical.searchMotivation` 필수
+- `refExists === true`이면:
+  - `critical.reference.coreAppeal`, `critical.reference.viralEngine` 모두 비어 있지 않은 문자열
+  - `critical.appealTransfer` 객체 필수:
+    - `value ∈ "STRONG" | "PARTIAL" | "MISMATCH"`
+    - `evidence` 비어 있지 않은 문자열
+    - `deviationPoint` 문자열 또는 `null`
+  - `critical.reconstruction` 객체 필수 (§2.3.1)
+
+`critical.productCuriosity.value ∈ "STRONG" | "MEDIUM" | "WEAK"`, `evidence` 필수.
+`critical.searchMotivation.value ∈ "STRONG" | "MEDIUM" | "WEAK"`, `evidence`·`liftDirection` 필수.
+
+**프롬프트 명시 규칙 (AI가 임의 확정 못하게):**
+- 정보량 많다고 Search Motivation STRONG 금지.
+- 본문 미완성·댓글 유도로 만든 궁금증 STRONG 금지.
+- `referenceCoreAppeal`은 단순 주제 요약이 아니라 심리적 소구 문장.
+
+#### 2.3.1 Reconstruction 스키마 (refExists일 때 필수)
+
+**4개 축 각각:**
+
+| 필드 | 값 |
+|---|---|
+| `persona.value` | `"CHANGED" \| "SAME" \| "NOT_APPLICABLE"` |
+| `event.value` | `"CHANGED" \| "SAME" \| "NOT_APPLICABLE"` |
+| `deficiencyTrigger.value` | `"CHANGED" \| "SAME" \| "ADDED" \| "NOT_APPLICABLE"` |
+| `endingMethod.value` | `"CHANGED" \| "SAME" \| "NOT_APPLICABLE"` |
+
+**축별 부가 필드:**
+- `persona`, `event`: `referenceSummary`(string), `draftSummary`(string), `evidence`(string).
+- `deficiencyTrigger`: `referenceSummary`(string | null; `value === "ADDED"`일 때 반드시 `null`), `draftSummary`(string), `evidence`(string).
+- `endingMethod`: `referenceType`(enum), `draftType`(enum), `evidence`(string).
+  - `endingType` enum: `"정보 질문" | "감정 질문" | "선언" | "관찰" | "추천" | "반전" | "결론" | "리스트 마감" | "OTHER"`.
+
+**Obstacle:**
+- `referenceHasObstacle: boolean`
+- `draftHasObstacle: boolean`
+- `functionPreserved: boolean | null` — `referenceHasObstacle === false`이면 반드시 `null`, 아니면 boolean.
+- `detailsTransformed: boolean | null` — 위와 동일한 조건.
+- `evidence: string`
+- Zod refinement 강제.
+
+**Surface Clone Risk:**
+- `value ∈ "LOW" | "MEDIUM" | "HIGH"`.
+- `quotedFragments: string[]` — 실제 겹치는 표현·수치 인용, 최대 각 500자.
+- `evidence: string`.
+
+**서버 계산 (AI 반환값 무시):**
+- `unchangedCount` = 4개 축 중 `value === "SAME"`인 개수.
+- `applicableCount` = 4개 축 중 `value !== "NOT_APPLICABLE"`인 개수.
+- `verdict`:
+  - `unchangedCount === 0` → `"TRANSFORMED"`
+  - `unchangedCount === 1` → `"BORDERLINE"`
+  - `unchangedCount >= 2` → `"TOO_CLOSE"`
+
+**AI가 반환하는 top-level 필드:**
+- `reconstruction.evidence: string` — 가장 크게 원문과 겹치는 지점 (또는 "없음").
+- `reconstruction.revisionDirection: string` — 재구성하려면 무엇을 바꿔야 하는지 (또는 "유지 권장").
+
+**단순 단어 치환 금지 규칙**은 프롬프트에 명시 (`RECONSTRUCTION_RULES §5`).
 
 **Diagnostic 3축 enum:**
-- `emotion.value` ∈ `절박함 | 시크함 | 순수감탄 | 놀람 | OTHER`
-- `speaker.value` ∈ `본인 1인칭 | 딸-엄마 관찰 | 친구-친구 관찰 | 순수 목격자 | OTHER`
-- `disclosureMode.value` ∈ `직접서술 | 리스트 | 대화체 | 선언문 | OTHER`
-- OTHER면 `otherLabel` 필수, 비-OTHER면 `null` (Zod refinement).
+- `emotion.value ∈ 절박함 | 시크함 | 순수감탄 | 놀람 | OTHER`
+- `speaker.value ∈ 본인 1인칭 | 딸-엄마 관찰 | 친구-친구 관찰 | 순수 목격자 | OTHER`
+- `disclosureMode.value ∈ 직접서술 | 리스트 | 대화체 | 선언문 | OTHER`
+- OTHER면 `otherLabel` 문자열 필수, 비-OTHER면 `null` (Zod refinement).
 
 **기타:**
-- `referenceCloneRisk.applicable`은 `refOriginal`이 존재할 때만 `true`. `level` ∈ `"low" | "medium" | "high"`.
-- `listHomogeneity.applicable`은 리스트형일 때만 `true`.
+- **`diagnostic.referenceCloneRisk`는 삭제됨.** `critical.reconstruction.surfaceCloneRisk`로 이동 (D-024).
+- `diagnostic.listHomogeneity.applicable`은 리스트형일 때만 `true`.
 - `topProblems` 1~3개.
 - 임의 백분율 필드(`salesRatioPercent` 등) 존재 금지.
 
-### 2.4 Final Verdict 계산 규칙 (서버, 결정적)
+**Final Verdict:**
+- `finalVerdict.value ∈ "READY" | "NEEDS_REVISION" | "FAIL"`.
+- AI 반환값 무시, 서버가 §2.4 규칙으로 재계산.
+- `finalVerdict.reasons`는 서버가 채우는 문자열 배열.
+
+**Hook Code (기존과 동일):**
+- `diagnostic.hookCode ∈ A~M | NEW_PATTERN_CANDIDATE`.
+- `NEW_PATTERN_CANDIDATE`이면 `newPatternCandidate` 4필드 필수, 아니면 `null`.
+
+### 2.4 Final Verdict 계산 규칙 (서버, 결정적) — Reconstruction 반영
 
 Let `refExists = (refOriginal !== null && refOriginal !== "")`.
 
@@ -207,21 +291,24 @@ Let `refExists = (refOriginal !== null && refOriginal !== "")`.
    - `hygiene.grade === "FAIL"`
    - `searchMotivation.value === "WEAK"`
    - `refExists && appealTransfer.value === "MISMATCH"`
+   - **NEW:** `refExists && reconstruction.verdict === "TOO_CLOSE"`
+   - **NEW:** `refExists && reconstruction.surfaceCloneRisk.value === "HIGH"`
 
 2. **READY** — FAIL이 아니면서 **모두** 참이어야 `READY`:
    - `hygiene.grade === "A"`
    - `searchMotivation.value === "STRONG"`
    - `refExists ? appealTransfer.value === "STRONG" : true`
+   - **NEW:** `refExists ? reconstruction.verdict === "TRANSFORMED" : true`
+   - **NEW:** `refExists ? reconstruction.surfaceCloneRisk.value !== "HIGH" : true`
 
-3. **NEEDS_REVISION** — 위 두 조건 어디에도 해당하지 않는 나머지.
+3. **NEEDS_REVISION** — 그 외. **`BORDERLINE`은 READY가 아니라 최소 NEEDS_REVISION.**
 
-**임의 100점 점수 방식 금지.** 규칙 조정 시 이 문서와 `docs/DECISIONS.md`(D-022)에 반영.
+레퍼런스가 없는 draft에서는 Reconstruction 관련 조건을 전부 무시하고 상위 규칙만 적용.
 
-`reasons[]`는 서버가 원인을 나열:
-- `"hygiene.grade = FAIL: G1, G3 실패"`
-- `"searchMotivation = WEAK"`
-- `"appealTransfer = MISMATCH — draftCoreAppeal이 referenceCoreAppeal의 핵심 긴장(가격/기대 역전)에서 이탈해 신제품 소개로 바뀜"`
-- `"hygiene = A + appealTransfer = STRONG + searchMotivation = STRONG → READY"`
+`reasons[]` 예:
+- `"reconstruction.verdict = TOO_CLOSE (persona SAME + event SAME)"`
+- `"surfaceCloneRisk = HIGH — 특이 숫자 3개(3년, 10kg, 새벽 4시) 그대로"`
+- `"reconstruction.verdict = TRANSFORMED · surfaceCloneRisk = LOW · appealTransfer = STRONG → READY"`
 
 ### 2.5 에러 응답
 
@@ -229,7 +316,7 @@ Let `refExists = (refOriginal !== null && refOriginal !== "")`.
 { "error": "SCHEMA_VALIDATION_FAILED", "detail": "..." }
 ```
 
-서버가 최대 2회 재시도해도 실패면 이 에러. 클라이언트는 해당 행만 실패 표시.
+최대 2회 재시도 후 실패면 해당 행만 실패 표시.
 
 ---
 
@@ -249,18 +336,31 @@ Let `refExists = (refOriginal !== null && refOriginal !== "")`.
       "emotion":        { "value": "시크함",     "otherLabel": null },
       "speaker":        { "value": "본인 1인칭", "otherLabel": null },
       "disclosureMode": { "value": "리스트",     "otherLabel": null },
-      "appealTransfer": "STRONG",
-      "productCuriosity": "MEDIUM",
-      "searchMotivation": "STRONG",
-      "finalVerdict": "READY",
-      "hasReference": true
+      "appealTransfer":     "STRONG",
+      "productCuriosity":   "MEDIUM",
+      "searchMotivation":   "STRONG",
+      "finalVerdict":       "READY",
+      "hasReference":       true,
+
+      "reconstructionVerdict": "TRANSFORMED",
+      "surfaceCloneRisk":      "LOW",
+      "personaSame":            false,
+      "eventSame":              false,
+      "deficiencyTriggerSame":  false,
+      "endingSame":             false,
+      "personaApplicable":            true,
+      "eventApplicable":              true,
+      "deficiencyTriggerApplicable":  true,
+      "endingApplicable":             true,
+      "obstacleDeleted":       false,
+      "obstacleDetailCloned":  false
     }
   ]
 }
 ```
 
 - draft 본문·evidence는 보내지 않는다.
-- `appealTransfer`는 `refOriginal`이 없었던 행에서는 `"N/A"`로 보낸다 (집계용).
+- `appealTransfer`, `reconstructionVerdict`, `surfaceCloneRisk`, `*Same`, `obstacle*`는 `hasReference === false`이면 각각 `"N/A"` 또는 `null`.
 
 ### 3.2 Response Body — `PortfolioAnalysis`
 
@@ -279,24 +379,48 @@ Let `refExists = (refOriginal !== null && refOriginal !== "")`.
     "appealTransfer": { "STRONG": 8,  "PARTIAL": 12, "MISMATCH": 5, "N/A": 9 },
     "productCuriosity": { "STRONG": 6, "MEDIUM": 18, "WEAK": 10 },
     "searchMotivation": { "STRONG": 5, "MEDIUM": 17, "WEAK": 12 },
-    "finalVerdict":   { "READY": 4, "NEEDS_REVISION": 22, "FAIL": 8 }
+    "finalVerdict":   { "READY": 4, "NEEDS_REVISION": 22, "FAIL": 8 },
+
+    "reconstructionVerdict": { "TRANSFORMED": 6, "BORDERLINE": 9, "TOO_CLOSE": 10 },
+    "surfaceCloneRisk":      { "LOW": 12, "MEDIUM": 9, "HIGH": 4 }
   },
+
+  "reconstructionAxes": {
+    "persona":           { "same": 3,  "applicable": 25 },
+    "event":             { "same": 14, "applicable": 24 },
+    "deficiencyTrigger": { "same": 11, "applicable": 20 },
+    "ending":            { "same": 2,  "applicable": 25 },
+    "obstacleDeleted":       3,
+    "obstacleDetailCloned":  5
+  },
+
   "warnings": [
-    { "kind": "OVERUSE",         "field": "hookCode",         "value": "A",        "ratio": 0.42 },
-    { "kind": "MISMATCH_HEAVY",  "field": "appealTransfer",   "value": "MISMATCH", "ratio": 0.31 },
-    { "kind": "SEARCH_WEAK_HEAVY","field": "searchMotivation","value": "WEAK",     "ratio": 0.36 },
-    { "kind": "FORMAT_VS_SEARCH", "detail": "Hook·감정·화자 분포는 다양하지만 searchMotivation WEAK 비율이 임계치 초과 — 포맷은 다양하나 제품 관심으로 이어지지 않음" }
+    { "kind": "OVERUSE",                       "field": "hookCode",             "value": "A",           "ratio": 0.42 },
+    { "kind": "MISMATCH_HEAVY",                "field": "appealTransfer",       "value": "MISMATCH",    "ratio": 0.31 },
+    { "kind": "SEARCH_WEAK_HEAVY",             "field": "searchMotivation",     "value": "WEAK",        "ratio": 0.36 },
+    { "kind": "FORMAT_VS_SEARCH",              "detail": "포맷 다양 · Search WEAK 다수" },
+    { "kind": "RECONSTRUCTION_TOO_CLOSE_HEAVY","field": "reconstructionVerdict","value": "TOO_CLOSE",   "ratio": 0.40 },
+    { "kind": "SURFACE_CLONE_HEAVY",           "field": "surfaceCloneRisk",     "value": "HIGH",        "ratio": 0.16 },
+    { "kind": "AXIS_WEAK",                     "field": "event",                "detail": "event SAME 비율 58% — 사건을 새로 만드는 능력 부족" }
   ],
+
   "recommendation": {
-    "text": "다음 소재에서 우선 채울 방향에 대한 자유서술 (Claude 생성)",
-    "suggestedAngles": ["L × 친구관찰 × 대화체", "J × 시크함 × 선언문", "K × 순수목격자 × 리스트"]
+    "text": "다음 소재에서 우선 채울 방향에 대한 자유서술 + 재구성 훈련 피드백",
+    "suggestedAngles": ["L × 친구관찰 × 대화체", "J × 시크함 × 선언문"]
   }
 }
 ```
 
-- `counts`·`warnings`는 서버가 결정적으로 계산.
-- 초기 경고 임계치는 튜닝 값. 기본 제안: `OVERUSE` 0.40, `MISMATCH_HEAVY` 0.30, `SEARCH_WEAK_HEAVY` 0.35, `FORMAT_VS_SEARCH`는 Hook/감정/화자 각 최대 비율이 0.40 이하 AND `searchMotivation.WEAK` 비율이 0.30 이상일 때.
-- `recommendation`만 Claude 호출 1회.
+- 모든 카운트·경고는 서버가 결정적으로 계산.
+- 초기 임계 (튜닝 값):
+  - `OVERUSE` 0.40
+  - `MISMATCH_HEAVY` 0.30
+  - `SEARCH_WEAK_HEAVY` 0.35
+  - `FORMAT_VS_SEARCH`: Hook·감정·화자 각 최대 비율 ≤ 0.40 AND searchMotivation WEAK ≥ 0.30
+  - `RECONSTRUCTION_TOO_CLOSE_HEAVY` 0.35
+  - `SURFACE_CLONE_HEAVY` 0.15
+  - `AXIS_WEAK`: 축별 SAME 비율(same / applicable) ≥ 0.50
+- `recommendation.text`만 Claude 1회. 카운트·경고 데이터는 프롬프트에 주입 (AI가 별도 카운트를 만들지 않음).
 
 ---
 
@@ -305,23 +429,28 @@ Let `refExists = (refOriginal !== null && refOriginal !== "")`.
 ### 4.1 시트 구성
 
 - **시트 1:** 원본 그대로.
-- **시트 2 `Analysis`:** 원본 컬럼 유지 + 다음 컬럼 추가 (순서 그대로):
-  - `Hygiene등급` (`A`/`B`/`FAIL`), `G1`, `G2`, `G3`, `G4`
+- **시트 2 `Analysis`:** 원본 컬럼 유지 + 다음 컬럼 (순서):
+  - `Hygiene등급`, `G1`, `G2`, `G3`, `G4`
   - `참조소구`, `참조바이럴엔진`, `작성안소구`
   - `AppealTransfer`, `AppealTransfer근거`, `이탈지점`
   - `제품호기심`, `제품호기심근거`
   - `검색동기`, `검색동기근거`, `검색동기수정방향`
-  - `최종판정` (`READY`/`NEEDS_REVISION`/`FAIL`), `판정근거`
-  - `Hook`, `NewPatternName` (NEW_PATTERN_CANDIDATE일 때만 값)
+  - `재구성판정`, `Unchanged`, `Persona`, `Event`, `결핍계기`, `EndingMethod`, `Reference결말유형`, `Draft결말유형`
+  - `장애물_기능유지`, `장애물_세부재구성`
+  - `SurfaceCloneRisk`, `SurfaceClone인용`
+  - `재구성겹침지점`, `재구성수정방향`
+  - `최종판정`, `판정근거`
+  - `Hook`, `NewPatternName`
   - `감정`, `감정_기타라벨`, `화자`, `화자_기타라벨`, `공개방식`, `공개방식_기타라벨`
-  - `판매튐`, `유사도`, `건강주장`, `구조문제점`, `구조수정방향`
+  - `판매튐`, `건강주장`, `구조문제점`, `구조수정방향`
+  - 레퍼런스가 없는 행은 재구성·참조·AppealTransfer 관련 셀 전부 공란.
 - **시트 3 `Portfolio`:** 집계표 + 경고 + AI recommendation.
 
 ### 4.2 파일명
 
 `{원본파일명(확장자 제외)}_ANALYZED_{YYYYMMDD_HHmm}.xlsx`.
 
-브라우저 다운로드. 원본은 절대 덮어쓰지 않는다.
+원본 절대 덮어쓰지 않는다.
 
 ---
 
@@ -329,9 +458,9 @@ Let `refExists = (refOriginal !== null && refOriginal !== "")`.
 
 ### 5.1 캐시 키
 
-- 재료: `draft`, `refOriginal ?? ""`, `promptVersion` (현재 `v2`).
+- 재료: `draft`, `refOriginal ?? ""`, `promptVersion` (현재 `v3`).
 - `SHA-256(draft + "␞" + (refOriginal ?? "") + "␞" + promptVersion)` → hex.
-- 프리픽스: `viral-lab:review:v2:<hash>`.
+- 프리픽스: `viral-lab:review:v3:<hash>`.
 
 ### 5.2 엔트리 스키마
 
@@ -348,19 +477,18 @@ type CacheEntry = {
 
 - 분석 시작 시 캐시 조회 → 히트면 Claude 호출 생략.
 - "이 행 강제 재분석" / "전체 강제 재분석" / "캐시 비우기" 버튼.
-- `promptVersion` 상승 시 프리픽스 변경으로 자연 무효화.
+- `promptVersion` 상승 시 프리픽스 변경으로 자연 무효화 (`v2` → `v3`).
 - 빈 draft 행은 캐시 없음.
-- 크기 관리: timestamp 기준 LRU-lite, 4MB 근접 시 축출.
-- 향후 서버 DB로 확장 가능한 구조 유지.
+- 4MB 근접 시 LRU-lite 축출.
+- 향후 서버 DB 확장 가능한 구조 유지.
 
 ---
 
 ## 6. Supabase (Scout Phase 이후에만 도입)
 
-Review Phase에서는 이 절 전체를 무시. Scout Phase B부터 실제 테이블 생성. 자세한 설계 이유는 `docs/SCOUT_DESIGN.md`.
+Review Phase에서는 이 절 무시. 자세한 이유는 `docs/SCOUT_DESIGN.md`.
 
 ### 6.1 `search_families`
-
 | 컬럼 | 타입 | 비고 |
 |---|---|---|
 | `id` | uuid | PK |
@@ -370,26 +498,23 @@ Review Phase에서는 이 절 전체를 무시. Scout Phase B부터 실제 테�
 | `created_at` | timestamptz | |
 
 ### 6.2 `seed_queries`
-
 | 컬럼 | 타입 | 비고 |
 |---|---|---|
 | `id` | uuid | PK |
-| `family_id` | uuid | FK → `search_families.id` |
+| `family_id` | uuid | FK |
 | `query` | text | |
 | `state` | text | `ACTIVE` \| `CANDIDATE` \| `REJECTED` \| `DISABLED` |
 | `provenance` | text | `USER_MANUAL` \| `AI_EXPANSION` \| `SAVED_REFERENCE` \| `DISCOVERED_PATTERN` |
-| `parent_seed_id` | uuid | nullable, 자기 참조 |
+| `parent_seed_id` | uuid | nullable |
 | `source_reference_id` | uuid | nullable, FK → `saved_references.id` |
 | `enabled` | boolean | |
 | `notes` | text | |
 | `created_at` | timestamptz | |
 | `created_by` | text | `user` \| `ai` |
 
-- unique(`family_id`, `query`).
-- AI 생성 Query는 반드시 `state = "CANDIDATE"`.
+- unique(`family_id`, `query`). AI 생성 Query는 반드시 `state = CANDIDATE`.
 
 ### 6.3 `scout_candidates`
-
 | 컬럼 | 타입 | 비고 |
 |---|---|---|
 | `id` | uuid | PK |
@@ -409,7 +534,7 @@ Review Phase에서는 이 절 전체를 무시. Scout Phase B부터 실제 테�
 | `speaker_other_label` | text | nullable |
 | `disclosure_mode` | text | enum 또는 `OTHER` |
 | `disclosure_mode_other_label` | text | nullable |
-| `family_id` | uuid | 후보를 데려온 Family (캐시) |
+| `family_id` | uuid | 캐시 |
 | `cluster_id` | uuid | nullable |
 | `quality_score` | numeric | |
 | `novelty_score` | numeric | |
@@ -418,13 +543,10 @@ Review Phase에서는 이 절 전체를 무시. Scout Phase B부터 실제 테�
 | `view_source` | text | `PUBLIC_UI` \| `MANUAL` \| `UNAVAILABLE` |
 | `view_checked_at` | timestamptz | nullable |
 | `status` | text | `RAW` \| `RECOMMENDED` \| `SAVED` \| `REJECTED` |
-| `manual_body` | text | 사용자가 붙여넣은 원문 fallback |
+| `manual_body` | text | 사용자 fallback 붙여넣기 |
 | `notes` | text | |
 
-인덱스: `posted_at desc`, `collected_at desc`, `status`, `cluster_id`.
-
 ### 6.4 `saved_references`
-
 | 컬럼 | 타입 | 비고 |
 |---|---|---|
 | `id` | uuid | PK |
@@ -436,46 +558,14 @@ Review Phase에서는 이 절 전체를 무시. Scout Phase B부터 실제 테�
 | `speaker` | text | |
 | `disclosure_mode` | text | |
 | `structure_summary` | text | |
-| `core_appeal` | text | nullable — 향후 Review의 referenceCoreAppeal 개념을 재사용 가능 |
-| `viral_engine` | text | nullable |
+| `core_appeal` | text | nullable — Review의 `referenceCoreAppeal` 개념 재사용 |
+| `viral_engine` | text | nullable — Review의 `referenceViralEngine` 개념 재사용 |
 | `tags` | text[] | |
 | `saved_at` | timestamptz | |
 
-### 6.5 `rejected_candidates`
+### 6.5 `rejected_candidates` / 6.6 `query_runs` / 6.7 `pattern_candidates`
 
-| 컬럼 | 타입 |
-|---|---|
-| `id` | uuid |
-| `candidate_id` | uuid |
-| `reason` | text |
-| `rejected_at` | timestamptz |
-
-### 6.6 `query_runs`
-
-| 컬럼 | 타입 |
-|---|---|
-| `id` | uuid |
-| `seed_query_id` | uuid |
-| `search_mode` | text |
-| `run_at` | timestamptz |
-| `raw_count` | integer |
-| `deduped_count` | integer |
-| `recommended_count` | integer |
-| `saved_count` | integer |
-| `error` | text |
-
-### 6.7 `pattern_candidates`
-
-| 컬럼 | 타입 |
-|---|---|
-| `id` | uuid |
-| `proposed_name` | text |
-| `structure_summary` | text |
-| `linguistic_features` | text[] |
-| `first_seen_at` | timestamptz |
-| `occurrence_count` | integer |
-| `state` | text — `PENDING` \| `APPROVED` \| `REJECTED` |
-| `approved_hook_code` | text |
+기존 정의 유지 (변경 없음).
 
 ---
 
@@ -496,9 +586,9 @@ Review Phase에서는 이 절 전체를 무시. Scout Phase B부터 실제 테�
 ## 8. 버전·마이그레이션 규칙
 
 - 스키마·프롬프트 변경 시:
-  1. `promptVersion` 상승 (`v2` → `v3` 등).
+  1. `promptVersion` 상승 (`v3` → `v4` 등).
   2. Zod 스키마 파일 새 버전으로 분리.
   3. `docs/DECISIONS.md`에 이유.
   4. 캐시 자동 무효화 (프리픽스 변경).
-- Final Verdict 규칙 조정은 promptVersion 상승 없이 가능하지만 `DECISIONS.md` D-022에 반영.
-- Supabase 스키마 변경은 마이그레이션 SQL을 별도 파일로 커밋.
+- Final Verdict 규칙 조정은 promptVersion 상승 없이 가능 (순수 서버 규칙 변경). `DECISIONS.md` D-022에 append.
+- Reconstruction 판정 축·enum 변경은 promptVersion 상승 필요.
