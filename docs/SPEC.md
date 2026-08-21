@@ -9,7 +9,7 @@ Threads 바이럴 콘텐츠 업무용 내부 웹도구. Next.js 한 프로젝트
 
 개발 순서: **Review 완성 → 실제 업무 검증 → Scout 개발.**
 
-Scout 세부 설계는 별도 문서 `docs/SCOUT_DESIGN.md`에 있다. 이 문서(SPEC.md)는 Review를 정밀하게 다루고 Scout는 요약만 담는다.
+Scout 세부 설계는 `docs/SCOUT_DESIGN.md`에 있다. 이 문서(SPEC.md)는 Review를 정밀하게 다루고 Scout는 요약만.
 
 ---
 
@@ -19,16 +19,16 @@ Scout 세부 설계는 별도 문서 `docs/SCOUT_DESIGN.md`에 있다. 이 문�
 
 1. Excel 업로드.
 2. 도구가 Header 행을 자동 감지하고, 어느 행이 Header인지 표시.
-3. 미리보기(첫 3행 등) 확인 후 "분석 시작".
-4. 각 행에 대해 Claude로 Core Grade + Diagnostic 계산.
-   캐시(§1.7)에 동일 입력의 결과가 있으면 Claude 호출 생략.
-5. 진행률(`47 / 120`, 캐시 히트 K건) 실시간 표시.
-6. 완료 시 표 + 상단 Portfolio 카드.
-7. "결과 다운로드"로 `..._ANALYZED_YYYYMMDD_HHmm.xlsx` 파일 저장(원본은 보존).
+3. 미리보기 확인 후 "분석 시작".
+4. 각 행에 대해 Claude로 Hygiene + Critical + Diagnostic 계산.
+   캐시(§1.9)에 동일 입력의 결과가 있으면 Claude 호출 생략.
+5. 진행률 실시간 표시.
+6. 완료 시 표 + 상단 Portfolio 카드. 각 행 상세에는 Critical Gate 결과가 한 화면에 표시(§1.6).
+7. "결과 다운로드"로 `..._ANALYZED_YYYYMMDD_HHmm.xlsx` (원본 보존).
 
 ### 1.2 입력 Excel 형식
 
-- 첫 행이 Header라고 가정하지 않는다. 앞쪽에 빈 행/안내문이 있을 수 있다.
+- 첫 행이 Header라고 가정하지 않는다.
 
 - **필수 Header (3종):**
   - `순서`
@@ -36,110 +36,184 @@ Scout 세부 설계는 별도 문서 `docs/SCOUT_DESIGN.md`에 있다. 이 문�
   - `리뷰내용` — 사용자가 작성한 콘텐츠 초안
 
 - **선택 Header (2종):**
-  - `이미지 파일명` — 있으면 결과 표/ANALYZED에 그대로 실려 나감. **없어도 분석 정상 동작.**
-  - `레퍼런스 원문` — 있으면 레퍼런스 vs 작성안 구조 비교 활성화, 없으면 작성안 단독 분석.
+  - `이미지 파일명` — 결과 표/ANALYZED에 그대로 실려 나감. **없어도 분석 정상 동작.**
+  - `레퍼런스 원문` — **있을 때만 Critical Gate 중 `appealTransfer`가 활성화**. 없으면 draft 단독 분석.
 
-- **Header 별칭 (동일 의미로 인정):**
+- **Header 별칭:**
   - `/제목` = `레퍼런스 링크`
   - `리뷰내용` = `작성안` = `작성한 글`
 
-- **Header 자동 감지:**
-  - 첫 20행을 훑는다.
-  - 각 셀 값을 문자열로 정규화 후 `trim`.
-  - 필수 3종(정확 일치 또는 위 별칭 중 하나)이 **모두** 포함되는 첫 행이 Header.
-  - 못 찾으면 명확한 에러.
+- **Header 자동 감지:** 첫 20행 · 셀 `trim` · 필수 3종(별칭 포함) 모두 포함하는 첫 행이 Header. 못 찾으면 명확한 에러.
 
-### 1.3 Core Grade (핵심 판정)
+### 1.3 Hygiene Gate (구 Core Gate) — 구조 완성도
 
-각 콘텐츠 초안 1개에 대해 4개 Gate를 통과했는지 판정.
+각 초안 1개에 대해 4개 gate.
 
-| # | Gate 이름 | 통과 기준 |
-|---|-----------|-----------|
+| # | Gate | 통과 기준 |
+|---|---|---|
 | G1 | 본문 완결성 | 질문·댓글의 답변에 의존하지 않고 본문만으로 내용이 완결되는가 |
-| G2 | 발견/전환 | 발견 또는 전환이 존재하는가 (예: `근데`, `그런데`, `알고 보니`, `웃긴 건`, `실제로 해보니`). **단순 단어 존재 검사가 아니라 의미상 전환을 판단.** |
+| G2 | 발견/전환 | 발견 또는 전환이 존재하는가 (예: `근데`, `그런데`, `알고 보니`, `웃긴 건`, `실제로 해보니`). **단어 존재가 아니라 의미상 전환**을 판단 |
 | G3 | 서사 완결 | 서사가 본문 안에서 완결되는가 |
-| G4 | 결과·원인 구조성 | 결과가 발생한 원인이 구체적이고 구조적으로 활용 가능한가 |
+| G4 | 결과·원인 구조성 | 결과의 원인이 구체적이고 구조적으로 활용 가능한가 |
 
-**등급 계산 (확정):**
-- passedCount 4 → **A**
-- passedCount 3 → **B**
-- passedCount 0–2 → **FAIL**
-- **C·D 등급 없음.**
+**`hygiene.grade` (서버 재계산, 확정):**
+- passedCount 4 → **A**, 3 → **B**, 0–2 → **FAIL**. C·D 없음.
 
-각 Gate는 `pass: boolean`과 짧은 근거 문장(evidence) 1개.
-AI는 gates의 boolean만 반환한다. `passedCount`와 `grade`는 **서버가 재계산해 덮어쓴다** (D-007).
-UI에서 Core Grade와 Diagnostic은 반드시 별도 섹션으로 보여준다.
+각 gate는 `pass: boolean` + 짧은 근거(evidence).
+AI는 gate boolean만 반환. `passedCount`·`hygiene.grade`는 서버가 항상 재계산해 덮어씀.
+UI에서 Hygiene / Critical / Diagnostic은 별도 섹션.
 
-### 1.4 Diagnostic (참고 지표, Core Grade와 분리)
+### 1.4 Critical Gate — Review 최상위 판정
+
+Review의 최상위 목적은 "잘 쓰인 Threads 글인가"가 아니라 **레퍼런스가 준 심리적 엔진을 새 소재로 옮겨오는 데 성공했는가 + 사람들이 검색까지 가는가**이다. Hygiene이 4/4여도 Critical이 나쁘면 **좋은 소재가 아니다** (§1.5 finalVerdict).
+
+#### 1.4.1 Reference / Draft Core Appeal 추출
+
+**레퍼런스 원문이 있을 때 AI가 가장 먼저 하는 일:**
+
+- `referenceCoreAppeal` — 이 콘텐츠에서 사람들이 실제로 욕망하거나 반응한 **핵심 가치/소구**를 한 문장.
+- `referenceViralEngine` — 그 핵심 소구를 강하게 느끼게 만든 표현 장치 (대비 · 반전 · 사회적 증거 · 반복사용 증거 · 관계 · 숫자 · 상황).
+
+**단순 주제 요약 금지.**
+
+| ❌ BAD | ✅ GOOD |
+|---|---|
+| "다이소 화장품 추천" | "비싼 기존 해결책보다 저렴하고 별것 아닌 제품에서 오히려 더 눈에 띄는 만족을 경험했다는 가격/기대 역전." |
+
+작성안에서도 별도로 `draftCoreAppeal` 추출.
+
+#### 1.4.2 Appeal Transfer (레퍼런스 원문이 있을 때만)
+
+`appealTransfer.value ∈ { STRONG | PARTIAL | MISMATCH }` + `evidence` + `deviationPoint`(가장 크게 이탈한 지점).
+
+| 값 | 의미 |
+|---|---|
+| STRONG | 원본이 터진 핵심 심리적 소구가 새 제품/상황에서도 자연스럽게 유지 |
+| PARTIAL | 표현 구조는 어느 정도 유지되지만 원본의 핵심 욕망·긴장이 약화 |
+| MISMATCH | 원본의 겉 형식만 빌렸을 뿐, 사람들이 원본에 반응한 핵심 이유가 다른 메시지로 바뀜 |
+
+**중요:** 문장·세부내용을 복제하라는 뜻이 아니다. 빌려와야 하는 것은 표면 문장이 아니라 **사람들이 반응한 심리적 엔진**이다.
+
+#### 1.4.3 Product Curiosity
+
+`productCuriosity.value ∈ { STRONG | MEDIUM | WEAK }` + `evidence`.
+
+기준: 작성안을 **처음 보는 사람이 글을 끝까지 읽었을 때** "이게 뭐지?", "왜 이렇지?", "무슨 제품이지?"라는 자연스러운 궁금증이 생기는가.
+
+#### 1.4.4 Search Motivation (Product Curiosity보다 엄격)
+
+`searchMotivation.value ∈ { STRONG | MEDIUM | WEAK }` + `evidence` + `liftDirection`(검색 동기를 높이기 위한 핵심 수정 방향).
+
+기준(가정): **"제품을 전혀 모르는 사용자가 Threads 피드에서 이 글을 우연히 읽었다. 글을 다 읽은 직후 제품명 또는 관련 키워드를 네이버에 직접 검색할 정도의 행동 동기가 생기는가?"**
+
+**절대 규칙:**
+- 제품명이 여러 번 노출됐다는 이유만으로 Search Motivation을 높게 평가하지 않는다.
+- **핵심은 정보량이 아니라 정보격차 · 의외성 · 욕망 · 대비 · 결과 · 상황적 자기관련성.**
+- **본문을 미완성으로 만들거나 답을 댓글로 미루는 방식으로 궁금증을 만드는 것은 STRONG으로 평가하지 않는다.** ("이야기의 답을 알기 위해 댓글을 봐야 한다"는 나쁨; "이야기는 끝났지만 제품 자체가 궁금하다"는 좋음.)
+- 이 규칙은 프롬프트 상수에 명시된다.
+
+### 1.5 Final Verdict — 서버 결정적 규칙
+
+`finalVerdict.value ∈ { READY | NEEDS_REVISION | FAIL }`.
+
+**임의 100점 점수 방식 금지 (D-020, D-022).** AI는 개별 gate·enum 값만 반환하고, 서버 코드가 아래 규칙으로 verdict를 계산해 덮어쓴다. `finalVerdict.reasons[]`에 사람이 읽을 수 있는 근거를 함께 채운다.
+
+Let `refExists = (refOriginal !== null && refOriginal !== "")`.
+
+**FAIL** — 아래 중 **하나라도** 참이면 즉시 FAIL:
+- `hygiene.grade === "FAIL"`
+- `searchMotivation.value === "WEAK"`
+- `refExists && appealTransfer.value === "MISMATCH"`
+
+**READY** — FAIL이 아니면서 **모두** 참이어야 함:
+- `hygiene.grade === "A"`
+- `searchMotivation.value === "STRONG"`
+- `refExists ? appealTransfer.value === "STRONG" : true`
+
+**NEEDS_REVISION** — 위 두 조건 어디에도 해당하지 않는 나머지.
+
+`productCuriosity`는 finalVerdict를 직접 게이팅하지 않지만 UI·Portfolio에서 별도로 보여준다 (Search Motivation의 선행 지표).
+
+**초기 규칙이며, 실사용 후 조정 가능하다.** 조정 시 `promptVersion`을 함께 올리진 않아도 되지만 `docs/DECISIONS.md`에 append.
+
+### 1.6 각 행 상세 UI (레퍼런스가 있을 때 한 화면에)
+
+다음을 반드시 한 화면에 배치.
+
+- Reference Core Appeal
+- Reference Viral Engine
+- Draft Core Appeal
+- Appeal Transfer (값 + 근거)
+- Product Curiosity (값 + 근거)
+- Search Motivation (값 + 근거)
+- 가장 크게 소구가 이탈한 지점 (`appealTransfer.deviationPoint`)
+- 검색 동기를 높이기 위한 핵심 수정 방향 (`searchMotivation.liftDirection`)
+
+레퍼런스가 없으면 Reference 3항목과 Appeal Transfer 관련 3항목은 숨긴다.
+
+### 1.7 Diagnostic (참고 지표, Hygiene·Critical과 분리)
 
 **enum으로 고정된 축:**
 
 - **Hook Code:** `A|B|C|D|E|F|G|H|I|J|K|L|M | NEW_PATTERN_CANDIDATE`
-  - 정의는 `docs/HOOK_CODES.md`.
+  - 정의: `docs/HOOK_CODES.md`.
   - `NEW_PATTERN_CANDIDATE`일 때 추가 필드: `whyDifferent`, `structureSummary`, `proposedName`, `linguisticFeatures[]`.
-  - **A~M은 "현재까지 발견된 분류"**일 뿐. AI는 A~M에 억지로 끼워 맞추지 않는다.
 - **감정태도:** `절박함 | 시크함 | 순수감탄 | 놀람 | OTHER`
 - **화자:** `본인 1인칭 | 딸-엄마 관찰 | 친구-친구 관찰 | 순수 목격자 | OTHER`
 - **정보공개방식:** `직접서술 | 리스트 | 대화체 | 선언문 | OTHER`
 
-**OTHER 반환 시:** `otherLabel`(짧은 자유서술 라벨) 필수. `value !== "OTHER"`이면 `otherLabel === null`. Zod refinement로 강제.
+**OTHER 반환 시** `otherLabel` 필수. Zod refinement로 강제.
 
-> 왜 enum 우선인가: 자유서술로 두면 "시크 / 시크함 / 무심함 / 관찰자적 태도"처럼 표기가 분산되어 Portfolio 집계가 불가능해진다.
-
-**구조화 필드 (임의 점수 대신 boolean/enum/짧은 근거):**
-
+**구조화 필드 (임의 점수 대신 boolean/enum):**
 - `hookCodeReason` — Hook 판단 근거 한 줄
-- `listHomogeneity` — 리스트형일 때 항목 간 문법적 균질성: `{ applicable, pass, evidence }`
-- `salesMessageStandsOut` — 제품·판매 메시지가 다른 내용보다 과도하게 튀는지: `{ pass, evidence }` (pass=true는 "튀지 않음")
-- `referenceCloneRisk` — 레퍼런스 원문이 있을 때만: 문장·수치·디테일을 과도하게 복제했는지: `{ applicable, level: "low"|"medium"|"high", quotedFragments[] }`
-- `healthClaimsToVerify` — 건강·영양·효능·의학 관련 사실검증 필요한 주장: string[]
-- `topProblems` — 가장 큰 문제 1~3개: string[1..3]
-- `revisionDirection` — 수정 방향: string (짧게)
+- `listHomogeneity` — 리스트형 항목 문법적 균질성: `{ applicable, pass, evidence }`
+- `salesMessageStandsOut` — 판매 메시지가 튀는지: `{ pass, evidence }`
+- `referenceCloneRisk` — 레퍼런스가 있을 때만: `{ applicable, level: "low"|"medium"|"high", quotedFragments[] }`
+- `healthClaimsToVerify` — 사실검증 필요한 건강·효능 주장: string[]
+- `topProblems` — 구조적 문제 1~3개: string[1..3]
+- `revisionDirection` — 구조적 수정 방향 한 줄
 
-AI는 **근거 없는 수치를 만들지 않는다.** 확신 못하는 지표는 반환하지 않는 편이 낫다.
+AI는 근거 없는 수치를 만들지 않는다.
 
-### 1.5 Portfolio Analysis (Excel 전체)
+### 1.8 Portfolio Analysis (Excel 전체)
 
-전체 행이 분석된 뒤 1회 계산. **통계는 코드가 계산하고, AI는 해석/추천만 담당.**
+전체 행 분석 후 1회. **통계는 코드가 결정적으로 계산, AI는 해석/추천만 담당.**
 
-**코드가 계산하는 것:**
+**코드가 계산:**
 - Hook A~M 개수 + NEW_PATTERN_CANDIDATE 개수
-- 감정태도 비율
-- 화자 비율
-- 정보공개방식 비율
-- 등급 분포 (`A`, `B`, `FAIL`)
-- 과사용 경고: 특정 카테고리 상위 임계치(예: 40% 초과) 초과 시 자동 표시
+- 감정태도 / 화자 / 정보공개방식 분포 (OTHER 별도)
+- `hygiene.grade` 분포 (`A`, `B`, `FAIL`)
+- **`appealTransfer` 분포 (`STRONG` / `PARTIAL` / `MISMATCH` / `N/A`)**
+- **`productCuriosity` 분포 (`STRONG` / `MEDIUM` / `WEAK`)**
+- **`searchMotivation` 분포 (`STRONG` / `MEDIUM` / `WEAK`)**
+- **`finalVerdict` 분포 (`READY` / `NEEDS_REVISION` / `FAIL`)**
+- 과사용 경고: 특정 카테고리 상위 임계치 초과 시 자동 표시
+- **다양성-검색 불일치 경고:** 예를 들어 Hook·감정·화자 분포는 다양한데 `searchMotivation = WEAK` 비율이 임계치 초과이면 "포맷은 다양하지만 제품 관심으로 이어지지 않는 소재가 많다"는 경고를 자동 표시. (초기 임계치는 튜닝 값)
+- MISMATCH 과다 경고: `appealTransfer = MISMATCH` 비율 임계치 초과 시 표시.
 
-**AI가 생성하는 것:**
-- "다음 소재에서 어떤 방향을 우선 채우면 좋을지" 자유서술 + 추천 조합 예시(예: `L × 친구관찰 × 대화체`).
+**AI가 생성:**
+- "다음 소재에서 어떤 방향을 우선 채우면 좋을지" 자유서술 + 조합 예시 (예: `L × 친구관찰 × 대화체`).
+- 위 자동 경고를 반영해 우선순위를 조정한 방향 추천.
 
-### 1.6 결과 저장 방식 (파일)
-
-- **화면:** 표 + 상단 Portfolio 카드 (막대차트는 Tailwind div bar — D-003).
-- **다운로드:** 브라우저 다운로드로 새 xlsx.
-  - 파일명: `{원본이름}_ANALYZED_{YYYYMMDD_HHmm}.xlsx`.
-  - 시트: `원본 그대로` + `Analysis`(등급/게이트/진단 컬럼 추가) + `Portfolio`(집계·경고·AI 추천).
-
-### 1.7 로컬 캐시 (row-level, localStorage)
+### 1.9 로컬 캐시 (row-level, localStorage)
 
 - Supabase·IndexedDB는 Review Phase에서 사용하지 않는다.
 - **캐시 키:** `SHA-256(draft + ␞ + (refOriginal ?? "") + ␞ + promptVersion)`.
+- Critical Gate 도입으로 **현재 `promptVersion = v2`**. 캐시 자동 무효화.
 - 동일 입력은 사용자 강제 재분석이 아니면 Claude 재호출 안 함.
-- 새로고침·재업로드 후에도 결과 즉시 복구.
-- 빈 Excel 행은 API 호출·캐시 항목 모두 만들지 않는다.
+- 빈 draft 행은 API 호출·캐시 항목 모두 만들지 않는다.
 - 전체 재분석 시작 전 예상 호출 개수(캐시 히트 반영) 표시.
 - "이 행 강제 재분석", "전체 강제 재분석", "캐시 비우기" 버튼.
 - 향후 서버 DB 저장으로 확장 가능한 구조 유지.
 
-### 1.8 성능·비용
+### 1.10 성능·비용
 
 - 초기 동시성 = 3.
 - 실패 행은 표시만 하고 나머지는 계속 진행. 실패 행만 재시도 버튼.
 
-### 1.9 인증
+### 1.11 인증
 
-- Claude API endpoint가 Vercel에 공개되는 순간부터 **shared-password 필수.**
-- Review Phase 6에서 Vercel 배포 시 도입 (그전에는 로컬 개발만).
+- Vercel 배포 순간부터 **shared-password 필수** (Review Phase 6).
 - `REVIEW_SHARED_PASSWORD` env와 비교, HttpOnly 세션 쿠키(30일).
 - Google OAuth 등 복잡 인증 없음.
 
@@ -147,57 +221,30 @@ AI는 **근거 없는 수치를 만들지 않는다.** 확신 못하는 지표�
 
 ## 2. `/scout` 사양 요약 (Review 완성 후 개발)
 
-**전체 설계는 `docs/SCOUT_DESIGN.md` 참조.** 여기서는 원칙과 경계만 요약.
+**전체 설계는 `docs/SCOUT_DESIGN.md`.**
 
-### 2.1 목적
+Scout는 검색어 몇십 개를 반복 실행하는 프로그램이 아니다. 목적은 두 가지 동시.
+1. 이미 알고 있는 좋은 바이럴 패턴을 효율적으로 찾기.
+2. 아직 A~M 어디에도 명확히 안 들어가는 새 패턴을 지속 탐험.
 
-**두 가지를 동시에.**
-1. 기존에 알고 있는 좋은 바이럴 패턴을 효율적으로 찾기.
-2. 기존에 없는 새로운 패턴을 지속적으로 탐험하기.
+핵심 개념: Search Gene Pool · Novelty · Diversity · Exploration · NEW_PATTERN_CANDIDATE · Optional Engagement Verification (안전 규칙 절대 준수) · Exploit + Explore.
 
-Scout는 검색어 몇십 개를 반복 실행하는 프로그램이 아니다. 그렇게 하면 같은 글만 계속 모여 다양성이 사라진다.
-
-### 2.2 핵심 개념
-
-- **Search Gene Pool** — 검색어를 코드 하드코딩 없이 Family → Seed 구조로 관리. 사용자가 코드 수정 없이 추가·수정·비활성화 가능.
-- **Search Family ≠ Hook Code.** Family는 "새 콘텐츠를 찾기 위한 탐색" 체계, Hook은 "발견된 콘텐츠 분류" 체계. 절대 통합하지 않는다.
-- **NEW_PATTERN_CANDIDATE.** A~M 어디에도 명확히 안 들어가지만 흥미로우면 버리지 않고 후보로 표시. 새 Hook Code 자동 확정 없음(사용자 승인 필요).
-- **Novelty / Similarity.** 기존 저장분과 비교. 값은 단일 공식으로 합치지 않고 개별 저장.
-- **Semantic Clustering.** 서로 다른 검색어가 사실상 같은 유형의 글을 가져올 수 있으므로 Exact Dedup 뒤에 Cluster 판정. 초기엔 가장 단순한 방식으로 시작(Vector DB 등 도입 X).
-- **Diversity Quota.** 같은 Family/Hook/화자/구조가 결과를 독점하지 못하게 상한.
-- **Exploit / Explore.** Exploit ≈ 70–80%, Explore ≈ 20–30%. 비율은 설정 가능.
-- **Query Provenance & Performance.** Query 출처(USER_MANUAL / AI_EXPANSION / SAVED_REFERENCE / DISCOVERED_PATTERN)와 성과 축적 가능한 구조. 초기엔 자동 최적화 없음.
-
-### 2.3 Optional Engagement Verification (조회수 확인)
-
-- 공식 Threads Keyword Search가 타인의 view count를 주지 않을 수 있음.
-- **핵심 의존성으로 만들지 않는다.** 상위 후보만 대상, 공개 상태에서 로그인 없이 확인 가능한 데이터만.
-- **금지:** 로그인/CAPTCHA/Rate Limit/접근 제한 우회.
-- 조회수를 못 구해도 후보 삭제 금지: `views: null, viewSource: "UNAVAILABLE"`.
-- 이 모듈이 고장나도 Scout의 검색·분석·저장은 정상 동작.
-
-### 2.4 Scout Phase 요약
-
-`docs/ACCEPTANCE_TESTS.md`의 Scout A~G 참조. 자동 수집(cron)은 Phase G에서만.
+Scout Phase A~G, cron은 마지막.
 
 ---
 
 ## 3. Non-Goals (지금은 안 만드는 것)
 
-- 다중 사용자 계정·권한
-- 팀 협업(코멘트, 승인 흐름)
-- 모바일 전용 UI
+- 다중 사용자 계정·권한, 팀 협업, 모바일 전용 UI
 - Threads 외 플랫폼
 - AI 파인튜닝 / 자동 ML 추천 시스템
-- 실시간 알림
-- 자체 이미지 저장/CDN
+- 실시간 알림, 자체 이미지 CDN
 - Vector DB, 대규모 Queue, Microservice
 - OAuth
-- 초기부터 복잡한 단일 추천 공식
+- 초기부터 복잡한 단일 추천 공식 / Review Final Verdict의 100점 점수 방식
 
 ---
 
 ## 4. 열려 있는 결정
 
-- **없음** — Phase 1~6(Review) 및 Scout A~G 착수에 필요한 설계 원칙은 이 문서와 `docs/SCOUT_DESIGN.md`, `docs/DATA_CONTRACT.md`, `docs/DECISIONS.md`에 모두 명시되어 있다.
-- 세부 튜닝 값(Exploit/Explore 비율의 정확한 초기값, Diversity Quota의 정확한 N, 조회수 임계치의 초기 기본값)은 Scout Phase 진입 시 실운영 데이터로 결정한다.
+- **없음.** 튜닝 값(과사용 경고 임계, MISMATCH·WEAK 경고 임계, Diversity Quota N, Exploit/Explore 비율, 조회수 필터 default)은 실운영 데이터로 조정.

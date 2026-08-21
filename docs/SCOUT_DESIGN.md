@@ -105,6 +105,17 @@ Query B: 실행  8회 · 후보  80개 · SAVE 14개 → 높은 효율
 
 ---
 
+## 4a. Review와의 개념 재사용 (Reference Core Appeal / Viral Engine)
+
+Review Phase에서 도입된 `referenceCoreAppeal`(사람들이 실제로 반응한 심리적 소구 한 문장)와 `referenceViralEngine`(그 소구를 강하게 만든 표현 장치) 개념은 Scout에서도 유용하다.
+
+- `saved_references.core_appeal` / `saved_references.viral_engine` 컬럼(`DATA_CONTRACT §6.4`)에 저장 가능.
+- Scout C의 Novelty 판정에서 이 두 문장은 similarity/novelty의 강력한 축이 될 수 있다 (기존 저장분과 draft의 core appeal이 얼마나 다른가).
+- 초기 MVP(Scout C~D)에서 이 컬럼은 존재하되 비어 있어도 된다. 사용자가 SAVE 시 수동 편집 가능하고, AI가 초안을 제안할 수도 있다.
+- Scout에서는 Review와 달리 "이전 성공 여부(appealTransfer)"를 계산하지 않는다. Scout의 대상은 이미 유통 중인 원본 콘텐츠지, 그것을 재활용한 draft가 아니기 때문이다.
+
+---
+
 ## 5. NEW_PATTERN_CANDIDATE
 
 A~M 어디에도 명확히 안 들어가지만 콘텐츠 자체가 흥미로우면 버리지 않는다.
