@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { parseWorkbookFromFile, type ParseResult } from "@/lib/excel/parse";
 import { HeaderDetectionError } from "@/lib/excel/headers";
+import RowAnalyzer from "./RowAnalyzer";
 
 const PREVIEW_LIMIT = 3;
 
@@ -182,9 +183,7 @@ function ParseSummary({ result }: { result: ParseResult }) {
         )}
       </section>
 
-      <p className="text-xs text-slate-500">
-        Phase 1 범위: 여기까지가 로컬 파일 파싱 결과입니다. 실제 분석(Claude 호출)은 Phase 2에서 붙습니다.
-      </p>
+      {rows.length > 0 && <RowAnalyzer rows={rows} />}
     </div>
   );
 }
