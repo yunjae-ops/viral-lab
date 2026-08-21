@@ -30,7 +30,7 @@ Phase 완료 후:
 **산출물:**
 - Next.js(App Router) + TypeScript + Tailwind
 - `/review` 페이지: 파일 업로드(브라우저 파싱) + Header 자동 감지(trim + 별칭) + 감지 결과 표시 + 첫 3행 미리보기
-- `.env.local.example`(값 비움): `ANTHROPIC_API_KEY=`, `ANTHROPIC_MODEL=`, `REVIEW_SHARED_PASSWORD=`
+- `.env.local.example`(값 비움): `VIRAL_LAB_ANTHROPIC_API_KEY=`, `VIRAL_LAB_ANTHROPIC_MODEL=`, `REVIEW_SHARED_PASSWORD=`
 
 **통과 기준:**
 - [ ] `pnpm dev`로 `/review` 로드
@@ -60,7 +60,7 @@ Phase 완료 후:
   - **Reconstruction: `RECONSTRUCTION_RULES §5` 단순 단어 치환 금지 규칙(엄마→이모, 3년→2년, 119→응급실 등) 그대로 삽입**
   - **Reconstruction: 억지 비극·과장된 위험 상황을 사실처럼 제시하는 Deficiency Trigger는 좋은 재구성으로 평가 금지**
   - **AI는 verdict/unchangedCount를 스스로 확정하지 말 것 명시**
-- **모델:** `process.env.ANTHROPIC_MODEL` 필수
+- **모델:** `process.env.VIRAL_LAB_ANTHROPIC_MODEL` 필수
 
 **통과 기준 — 스키마·규칙:**
 - [ ] 결과가 `DATA_CONTRACT §2.2` 스키마와 100% 일치
@@ -113,7 +113,7 @@ Phase 완료 후:
 **통과 기준 — 안정성:**
 - [ ] Zod 실패 유도 시 최대 2회 재시도 후 에러 UI, 다른 행 영향 없음
 - [ ] DevTools에서 API 키 노출 없음
-- [ ] `meta.model === env ANTHROPIC_MODEL`
+- [ ] `meta.model === env VIRAL_LAB_ANTHROPIC_MODEL`
 - [ ] grep: 모델 ID 하드코딩 없음
 - [ ] `phase(2): single-row analyzer + hygiene + critical + reconstruction + verdict` 커밋
 

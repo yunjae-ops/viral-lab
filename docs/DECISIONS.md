@@ -38,8 +38,8 @@
 ## D-008 · 파일 파싱은 브라우저에서, 서버에는 텍스트만
 - **상태:** accepted
 
-## D-009 · Claude 모델은 env `ANTHROPIC_MODEL` 관리, 하드코딩 금지
-- **상태:** accepted
+## D-009 · Claude 모델은 env `VIRAL_LAB_ANTHROPIC_MODEL` 관리, 하드코딩 금지
+- **상태:** accepted (2026-08-21 개정 · D-026 반영, env 변수명 변경)
 
 ## D-010 · Scout는 공식 Threads API가 1차, 크롤링은 부차
 - **상태:** accepted
@@ -154,6 +154,14 @@
 - **날짜:** 2026-08-21
 - **결정:** Reconstruction 필드·EndingMethod endingType·surfaceCloneRisk 대소문자 변경 등 스키마 확장에 따라 `promptVersion`을 `v2` → `v3`으로 올린다. 캐시 프리픽스 `viral-lab:review:v2:` → `viral-lab:review:v3:` 로 자동 무효화. ANALYZED Excel에는 재구성 관련 컬럼이 추가된다.
 - **비고:** 앞으로 Reconstruction 규칙(단순 단어 치환 예시, 축별 판정 임계 등) 조정 시에도 프롬프트가 바뀌면 promptVersion 상승. 순수 서버 규칙(임계값·finalVerdict) 조정은 상승 불필요.
+
+## D-026 · 앱 환경변수 `ANTHROPIC_API_KEY`/`ANTHROPIC_MODEL` → `VIRAL_LAB_ANTHROPIC_API_KEY`/`VIRAL_LAB_ANTHROPIC_MODEL`
+- **상태:** accepted
+- **날짜:** 2026-08-21
+- **결정:** Viral Lab 앱이 Claude API 호출에 사용하는 env 이름을 `ANTHROPIC_API_KEY`/`ANTHROPIC_MODEL`에서 `VIRAL_LAB_ANTHROPIC_API_KEY`/`VIRAL_LAB_ANTHROPIC_MODEL`로 변경한다.
+- **이유:** `ANTHROPIC_API_KEY`는 Claude Code 자체 실행 인증에도 사용될 수 있는 이름이라, 앱의 API 호출용 secret과 Claude Code 실행 인증을 분리한다.
+- **영향:** `.env.local.example`, `lib/review/env.ts`, `CLAUDE.md §5/§6`, `DATA_CONTRACT.md §2.2/§7`. `NEXT_PUBLIC_` 접두어는 여전히 금지. promptVersion 변경 없음(순수 env 이름 변경이며 프롬프트·스키마는 바뀌지 않음).
+- **비고:** D-009를 개정.
 
 ---
 

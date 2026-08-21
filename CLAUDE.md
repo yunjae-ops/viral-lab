@@ -24,7 +24,8 @@ Scout 관련 코드/의존성/폴더는 Review 실사용 검증(Review Phase 6)�
 1. **API Key는 서버 전용.** `NEXT_PUBLIC_` 접두어 금지. Claude 호출은 반드시 Next.js API Route(서버)에서만.
    > `NEXT_PUBLIC_...`는 브라우저 번들에 실려 유출되는 환경변수.
 
-2. **Claude 모델 ID를 코드에 하드코딩하지 않는다.** `process.env.ANTHROPIC_MODEL`로만 읽는다. env가 비면 서버 시작 시 에러. 응답 `meta.model`은 실제 사용된 값을 실어 감사에 대비.
+2. **Claude 모델 ID를 코드에 하드코딩하지 않는다.** `process.env.VIRAL_LAB_ANTHROPIC_MODEL`로만 읽는다. env가 비면 서버 시작 시 에러. 응답 `meta.model`은 실제 사용된 값을 실어 감사에 대비.
+   > `VIRAL_LAB_` 접두어: `ANTHROPIC_API_KEY`/`ANTHROPIC_MODEL`은 Claude Code 자체 인증에도 쓰일 수 있는 이름이라, 앱의 API 호출용 secret과 Claude Code 실행 인증을 분리하기 위해 접두어를 붙인다.
 
 3. **원본 Excel 파일은 절대 덮어쓰지 않는다.** 결과는 항상 `..._ANALYZED_YYYYMMDD_HHmm.xlsx` 새 파일.
 
@@ -178,7 +179,7 @@ Scout 폴더는 Review 실사용 검증 완료 후에만 생성.
 
 ## 5. Claude API 사용 규칙
 
-- 모델 ID는 **`process.env.ANTHROPIC_MODEL`에서만.** 하드코딩 금지.
+- 모델 ID는 **`process.env.VIRAL_LAB_ANTHROPIC_MODEL`에서만.** 하드코딩 금지.
 - 프롬프트는 `lib/review/prompts/` 하위 상수. UI/route 코드에 긴 프롬프트 문자열 두지 않는다.
 - JSON 모드 + Zod 검증. 실패 시 최대 2회 재시도.
 - 온도(temperature) 기본 0.2.
@@ -190,8 +191,8 @@ Scout 폴더는 Review 실사용 검증 완료 후에만 생성.
 
 | 이름 | 시점 | 용도 |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Review Phase 2부터 | Claude 호출 |
-| `ANTHROPIC_MODEL` | Review Phase 2부터 | 사용 모델 ID (하드코딩 금지) |
+| `VIRAL_LAB_ANTHROPIC_API_KEY` | Review Phase 2부터 | Claude 호출 (Claude Code 자체 인증용 `ANTHROPIC_API_KEY`와 충돌 방지) |
+| `VIRAL_LAB_ANTHROPIC_MODEL` | Review Phase 2부터 | 사용 모델 ID (하드코딩 금지) |
 | `REVIEW_SHARED_PASSWORD` | Vercel 배포 순간부터 | shared-password 인증 |
 | `THREADS_ACCESS_TOKEN` (예정) | Scout Phase A부터 | Threads API |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (예정) | Scout Phase B부터 | 저장 |

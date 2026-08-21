@@ -180,7 +180,7 @@ type ParsedRow = {
   },
 
   "meta": {
-    "model": "<서버 env ANTHROPIC_MODEL 값>",
+    "model": "<서버 env VIRAL_LAB_ANTHROPIC_MODEL 값>",
     "promptVersion": "v3",
     "elapsedMs": 4321
   }
@@ -573,8 +573,8 @@ Review Phase에서는 이 절 무시. 자세한 이유는 `docs/SCOUT_DESIGN.md`
 
 | 이름 | 언제부터 | 용도 |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Review Phase 2 | Claude |
-| `ANTHROPIC_MODEL` | Review Phase 2 | 모델 ID (하드코딩 금지) |
+| `VIRAL_LAB_ANTHROPIC_API_KEY` | Review Phase 2 | Claude 호출 (Claude Code 자체 인증용 `ANTHROPIC_API_KEY`와 충돌 방지) |
+| `VIRAL_LAB_ANTHROPIC_MODEL` | Review Phase 2 | 모델 ID (하드코딩 금지) |
 | `REVIEW_SHARED_PASSWORD` | Vercel 배포 순간 (Review Phase 6) | 인증 |
 | `THREADS_ACCESS_TOKEN` (예정) | Scout Phase A | Threads API |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (예정) | Scout Phase B | Supabase |
