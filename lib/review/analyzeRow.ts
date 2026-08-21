@@ -42,7 +42,6 @@ const defaultCallModel: CallModelFn = async ({ apiKey, model, system, userMessag
   const response = await client.messages.create({
     model,
     max_tokens: 4096,
-    temperature: 0.2,
     system,
     messages: [{ role: "user", content: userMessage }],
     tools: [

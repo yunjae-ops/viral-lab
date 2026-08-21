@@ -182,7 +182,7 @@ Scout 폴더는 Review 실사용 검증 완료 후에만 생성.
 - 모델 ID는 **`process.env.VIRAL_LAB_ANTHROPIC_MODEL`에서만.** 하드코딩 금지.
 - 프롬프트는 `lib/review/prompts/` 하위 상수. UI/route 코드에 긴 프롬프트 문자열 두지 않는다.
 - JSON 모드 + Zod 검증. 실패 시 최대 2회 재시도.
-- 온도(temperature) 기본 0.2.
+- **`temperature`/`top_p`/`top_k` 등 샘플링 파라미터를 임의로 지정하지 않는다.** 최신 세대 모델(예: `claude-sonnet-5`)은 API 차원에서 이 파라미터들을 거부(400)한다. 결정성이 필요하면 프롬프트·스키마·재시도 로직으로 확보한다.
 - 응답 `meta.model`은 실제 사용된 ID, `meta.promptVersion`은 프롬프트 상수 버전.
 
 ---
