@@ -209,17 +209,21 @@ const newPatternCandidateSchema = z.object({
   linguisticFeatures: z.array(z.string().min(1)).min(1),
 });
 
-const HOOK_CODES = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M"] as const;
+export const HOOK_CODES = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M"] as const;
+export const HOOK_CODES_WITH_NEW_PATTERN = [...HOOK_CODES, "NEW_PATTERN_CANDIDATE"] as const;
+export const EMOTION_VALUES = ["절박함", "시크함", "순수감탄", "놀람"] as const;
+export const SPEAKER_VALUES = ["본인 1인칭", "딸-엄마 관찰", "친구-친구 관찰", "순수 목격자"] as const;
+export const DISCLOSURE_MODE_VALUES = ["직접서술", "리스트", "대화체", "선언문"] as const;
 
 const diagnosticSchema = z
   .object({
-    hookCode: z.enum([...HOOK_CODES, "NEW_PATTERN_CANDIDATE"]),
+    hookCode: z.enum(HOOK_CODES_WITH_NEW_PATTERN),
     hookCodeReason: z.string().min(1),
     newPatternCandidate: newPatternCandidateSchema.nullable(),
 
-    emotion: otherableEnum(["절박함", "시크함", "순수감탄", "놀람"]),
-    speaker: otherableEnum(["본인 1인칭", "딸-엄마 관찰", "친구-친구 관찰", "순수 목격자"]),
-    disclosureMode: otherableEnum(["직접서술", "리스트", "대화체", "선언문"]),
+    emotion: otherableEnum([...EMOTION_VALUES]),
+    speaker: otherableEnum([...SPEAKER_VALUES]),
+    disclosureMode: otherableEnum([...DISCLOSURE_MODE_VALUES]),
 
     listHomogeneity: z.object({
       applicable: z.boolean(),

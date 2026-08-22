@@ -6,9 +6,13 @@ import { useReviewWorkspace } from "../hooks/useReviewWorkspace";
 import BatchPanel from "./BatchPanel";
 import MaterialList from "./MaterialList";
 import MaterialDetail from "./MaterialDetail";
+import PortfolioView from "./PortfolioView";
+
+type Tab = "materials" | "portfolio";
 
 export default function ReviewWorkspace({ rows }: { rows: ParsedRow[] }) {
   const workspace = useReviewWorkspace(rows);
+  const [tab, setTab] = useState<Tab>("materials");
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   const selectedPosition = selectedIndex !== null ? rows.findIndex((r) => r.index === selectedIndex) + 1 : 0;
@@ -19,32 +23,74 @@ export default function ReviewWorkspace({ rows }: { rows: ParsedRow[] }) {
     setSelectedIndex(rows[pos - 1].index);
   };
 
+  const goToMaterial = (index: number) => {
+    setSelectedIndex(index);
+    setTab("materials");
+  };
+
   return (
     <div className="space-y-6">
-      <BatchPanel
-        summary={workspace.summary}
-        scanning={workspace.scanning}
-        isBatchRunning={workspace.isBatchRunning}
-        onStart={workspace.startBatch}
-        onRetryFailed={workspace.retryFailed}
-        onClearCache={workspace.clearCache}
-      />
+      <div className="flex gap-1 border-b border-slate-200">
+        <TabButton active={tab === "materials"} onClick={() => setTab("materials")}>
+          개별 소재 검토
+        </TabButton>
+        <TabButton active={tab === "portfolio"} onClick={() => setTab("portfolio")}>
+          Portfolio
+        </TabButton>
+      </div>
 
-      {selectedRow ? (
-        <MaterialDetail
-          row={selectedRow}
-          state={workspace.states[selectedRow.index]}
-          position={selectedPosition}
-          total={rows.length}
-          onPrev={() => goTo(selectedPosition - 1)}
-          onNext={() => goTo(selectedPosition + 1)}
-          onBack={() => setSelectedIndex(null)}
-          onRetry={() => workspace.retryOne(selectedRow.index)}
-          onForceReanalyze={() => workspace.forceReanalyzeOne(selectedRow.index)}
-        />
+      {tab === "materials" ? (
+        <>
+          <BatchPanel
+            summary={workspace.summary}
+            scanning={workspace.scanning}
+            isBatchRunning={workspace.isBatchRunning}
+            onStart={workspace.startBatch}
+            onRetryFailed={workspace.retryFailed}
+            onClearCache={workspace.clearCache}
+          />
+
+          {selectedRow ? (
+            <MaterialDetail
+              row={selectedRow}
+              state={workspace.states[selectedRow.index]}
+              position={selectedPosition}
+              total={rows.length}
+              onPrev={() => goTo(selectedPosition - 1)}
+              onNext={() => goTo(selectedPosition + 1)}
+              onBack={() => setSelectedIndex(null)}
+              onRetry={() => workspace.retryOne(selectedRow.index)}
+              onForceReanalyze={() => workspace.forceReanalyzeOne(selectedRow.index)}
+            />
+          ) : (
+            <MaterialList rows={rows} states={workspace.states} onSelect={setSelectedIndex} />
+          )}
+        </>
       ) : (
-        <MaterialList rows={rows} states={workspace.states} onSelect={setSelectedIndex} />
+        <PortfolioView rows={rows} states={workspace.states} onSelectMaterial={goToMaterial} />
       )}
     </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
+        active ? "border-blue-600 text-blue-700" : "border-transparent text-slate-500 hover:text-slate-700"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
