@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { parseWorkbookFromFile, type ParseResult } from "@/lib/excel/parse";
 import { HeaderDetectionError } from "@/lib/excel/headers";
-import RowAnalyzer from "./RowAnalyzer";
+import ReviewWorkspace from "./ReviewWorkspace";
 
 const PREVIEW_LIMIT = 3;
 
@@ -183,7 +183,7 @@ function ParseSummary({ result }: { result: ParseResult }) {
         )}
       </section>
 
-      {rows.length > 0 && <RowAnalyzer rows={rows} />}
+      {rows.length > 0 && <ReviewWorkspace rows={rows} />}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { detectHeader, HeaderMap } from "./headers";
 export type ParsedRow = {
   index: number;
   sheetRowNumber: number;
+  orderLabel: string | null;
   refUrl: string | null;
   draft: string;
   imageFilename: string | null;
@@ -67,6 +68,7 @@ export async function parseWorkbookFromFile(file: File): Promise<ParseResult> {
     rows.push({
       index: idx++,
       sheetRowNumber: r + 1,
+      orderLabel: cellToNullableString(row[header.order]),
       refUrl: cellToNullableString(row[header.refUrl]),
       draft,
       imageFilename:
