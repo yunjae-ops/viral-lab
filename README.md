@@ -36,7 +36,8 @@ pnpm build
 - Build Command: `pnpm build` (기본값), Package Manager: pnpm (기본 자동 감지)
 - Production 브랜치: `main`
 - 필요한 환경변수 3종(`VIRAL_LAB_ANTHROPIC_API_KEY`, `VIRAL_LAB_ANTHROPIC_MODEL`, `REVIEW_SHARED_PASSWORD`)을 Vercel 프로젝트 Settings → Environment Variables에 Production/Preview 둘 다 등록
-- Production URL: _(배포 완료 후 채움)_
+- Production URL: https://viral-lab-git-main-marketcommerce1.vercel.app
+- 배포 상태: main(`19ee03d`) 기준 Production 배포 완료. shared-password 로그인 → `/review` 진입은 사용자가 실제 브라우저로 직접 확인함(이 세션은 네트워크 정책상 해당 도메인에 접속할 수 없어 직접 검증하지 못함).
 
 ## Secret 관리 주의사항
 
