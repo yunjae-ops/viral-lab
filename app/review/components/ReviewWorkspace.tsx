@@ -1,19 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { ParsedRow } from "@/lib/excel/parse";
+import type { HeaderMap } from "@/lib/excel/headers";
 import { useReviewWorkspace } from "../hooks/useReviewWorkspace";
 import BatchPanel from "./BatchPanel";
 import MaterialList from "./MaterialList";
 import MaterialDetail from "./MaterialDetail";
 import PortfolioView from "./PortfolioView";
+import { exportAnalyzedExcel } from "@/lib/review/export/exportAnalyzedExcel";
+import type { RowExportEntry } from "@/lib/review/export/analysisColumns";
 
 type Tab = "materials" | "portfolio";
 
-export default function ReviewWorkspace({ rows }: { rows: ParsedRow[] }) {
+export default function ReviewWorkspace({
+  rows,
+  file,
+  sheetName,
+  header,
+}: {
+  rows: ParsedRow[];
+  file: File;
+  sheetName: string;
+  header: HeaderMap;
+}) {
   const workspace = useReviewWorkspace(rows);
   const [tab, setTab] = useState<Tab>("materials");
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const selectedPosition = selectedIndex !== null ? rows.findIndex((r) => r.index === selectedIndex) + 1 : 0;
   const selectedRow = selectedPosition > 0 ? rows[selectedPosition - 1] : null;
@@ -26,6 +41,33 @@ export default function ReviewWorkspace({ rows }: { rows: ParsedRow[] }) {
   const goToMaterial = (index: number) => {
     setSelectedIndex(index);
     setTab("materials");
+  };
+
+  const exportEntries = useMemo(() => {
+    const map = new Map<number, RowExportEntry>();
+    for (const row of rows) {
+      const state = workspace.states[row.index];
+      if (!state) continue;
+      map.set(row.index, { status: state.status, result: state.result, error: state.error });
+    }
+    return map;
+  }, [rows, workspace.states]);
+
+  const hasAnyResult = useMemo(
+    () => Array.from(exportEntries.values()).some((e) => e.result !== null),
+    [exportEntries],
+  );
+
+  const handleExport = async () => {
+    setExporting(true);
+    setExportError(null);
+    try {
+      await exportAnalyzedExcel({ file, sheetName, header, rows, entries: exportEntries });
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : "다운로드 중 알 수 없는 오류가 발생했습니다.");
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -48,6 +90,10 @@ export default function ReviewWorkspace({ rows }: { rows: ParsedRow[] }) {
             onStart={workspace.startBatch}
             onRetryFailed={workspace.retryFailed}
             onClearCache={workspace.clearCache}
+            hasAnyResult={hasAnyResult}
+            exporting={exporting}
+            exportError={exportError}
+            onExport={handleExport}
           />
 
           {selectedRow ? (

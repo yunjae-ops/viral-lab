@@ -20,6 +20,7 @@ const colLabel = (idx: number): string => {
 
 export default function ReviewUploader() {
   const [fileName, setFileName] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<ParseResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -29,6 +30,7 @@ export default function ReviewUploader() {
     setError(null);
     setResult(null);
     setFileName(file.name);
+    setFile(file);
     try {
       const parsed = await parseWorkbookFromFile(file);
       setResult(parsed);
@@ -52,6 +54,7 @@ export default function ReviewUploader() {
 
   const reset = () => {
     setFileName(null);
+    setFile(null);
     setResult(null);
     setError(null);
   };
@@ -94,12 +97,12 @@ export default function ReviewUploader() {
         </div>
       )}
 
-      {result && <ParseSummary result={result} />}
+      {result && file && <ParseSummary result={result} file={file} />}
     </div>
   );
 }
 
-function ParseSummary({ result }: { result: ParseResult }) {
+function ParseSummary({ result, file }: { result: ParseResult; file: File }) {
   const { header, rows, skippedEmptyDraftCount, refOriginalPresent, imagePresent, sheetName } = result;
   const previewRows = rows.slice(0, PREVIEW_LIMIT);
 
@@ -183,7 +186,7 @@ function ParseSummary({ result }: { result: ParseResult }) {
         )}
       </section>
 
-      {rows.length > 0 && <ReviewWorkspace rows={rows} />}
+      {rows.length > 0 && <ReviewWorkspace rows={rows} file={file} sheetName={sheetName} header={header} />}
     </div>
   );
 }

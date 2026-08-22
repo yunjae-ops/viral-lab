@@ -20,6 +20,10 @@ export default function BatchPanel({
   onStart,
   onRetryFailed,
   onClearCache,
+  hasAnyResult,
+  exporting,
+  exportError,
+  onExport,
 }: {
   summary: Summary;
   scanning: boolean;
@@ -27,6 +31,10 @@ export default function BatchPanel({
   onStart: () => void;
   onRetryFailed: () => void;
   onClearCache: () => void;
+  hasAnyResult: boolean;
+  exporting: boolean;
+  exportError: string | null;
+  onExport: () => void;
 }) {
   const [confirmingStart, setConfirmingStart] = useState(false);
   const [confirmingClear, setConfirmingClear] = useState(false);
@@ -136,6 +144,31 @@ export default function BatchPanel({
               </div>
             )}
           </div>
+
+          <div className="pt-3 border-t border-slate-100 flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={onExport}
+              disabled={!hasAnyResult || exporting}
+              title={hasAnyResult ? undefined : "먼저 최소 1개 이상 분석을 완료해야 다운로드할 수 있습니다."}
+              className="px-3 py-1.5 text-sm rounded bg-slate-800 text-white disabled:bg-slate-300"
+            >
+              {exporting ? "다운로드 준비 중…" : "분석 결과 Excel 다운로드"}
+            </button>
+            {!hasAnyResult && (
+              <span className="text-xs text-slate-400">
+                분석 완료된 소재가 없어 아직 다운로드할 수 없습니다.
+              </span>
+            )}
+            {hasAnyResult && (
+              <span className="text-xs text-slate-400">
+                Claude API를 호출하지 않고, 이미 완료된 분석 결과만 원본 옆에 붙여 새 파일로 내려받습니다.
+              </span>
+            )}
+          </div>
+          {exportError && (
+            <div className="p-3 rounded border border-red-200 bg-red-50 text-red-700 text-sm">{exportError}</div>
+          )}
         </>
       )}
     </section>
